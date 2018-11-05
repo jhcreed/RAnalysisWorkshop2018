@@ -1,0 +1,356 @@
+---
+title: "Introduction to data cleaning in R (the tidyverse way)"
+output:
+  html_document:
+    df_print: paged
+---
+
+This is an opionated introduction to importing and cleaning your data specifically focused on tools from the [tidyverse](https://www.tidyverse.org/). A really good resource for learning R at your own speed is [R for data science](https://r4ds.had.co.nz/), by Hadley Wickham and Garrett Grolemund.
+
+We'll also go briefly go over reading in excel files, as that is a common format in many fields (CSV is more common in scientific fields, although a "CSV" is not a uniformly formatted file, as we shall see).
+
+tidyverse is a meta library that bundles several libraries together, for our purposes we will be using functions from the readr (fast, C++ based import functions) library and dplyr for cleaning. Technically there is one final library called magrittr used that gives us what is called a "pipe" that glues together multiple commands.
+
+PART I
+
+```{r import}
+#install.packages('tidyverse') #do this if you have not installed before
+#install.packages('summarytools')
+#install.packages('readxl')
+#install.packages('gapminder')
+library(gapminder)
+library(tidyverse) 
+
+#gap_tsv <- system.file("extdata", "gapminder.tsv", package = "gapminder")
+#gap_tsv <- read.delim(gap_tsv)
+
+
+library(readxl)
+#there are separate xls and xlsx import functions depending on which excel year format it is saved in
+
+#this code and cleaning is a condensed version of what Jenny Bryan did for her Gapminder package
+#there is even MORE cleaning for the real package
+pop_xls <- read_excel("gapdata003.xls")
+
+
+#use glimpse to get a quick overview of the columns and what types of features you have
+glimpse(pop_xls)
+#another good tool is summarytools (and specifically dfsummary())
+#this super quickly gives you quartile information and histograms or barplots for each feature/column
+
+library(summarytools)
+#view(dfSummary(gap_tsv)) #12 distinct values for year
+length(unique(pop_xls$Year)) #much more uneven distribution of data (most still come in a 5 year cycle)
+```
+
+
+There are 5 main "verbs" in dplyr that you will see over and over again. These are:
+
+1) select() : pick out the specific columns/features you want to focus on, and rename them if you want.
+
+2) filter() : select specific rows according to a condition. Very powerful, used all the time!
+
+3) mutate() : create new columns according to some transformation of old variable(s)
+
+4) arrange() : sort the dataframe in ascending or descending order  by one or more columns
+
+5) summarise() : calculate summary statistics like mean, median by grouping the data one one or more columns (group_by)
+
+
+Most of these verbs will be introduced naturally over the course of the cleaning steps.
+
+```{r cleanpop}
+summary(pop_xls$Year)
+#whoa...there's some hanging out in the the 1500s, but most is in the 1900s as expected. some is into 2030 (extrapolated?)
+
+#we'll do some basic plotting here to inform our cleaning, the fancy stuff will come tomorrow
+
+pop_raw <- pop_xls %>%
+  select(country = Area, year = Year, pop = Population)
+pop_raw %>% glimpse() #display the structure/summary
+
+year_freq <- pop_raw %>%
+  count(year)
+
+(p <- ggplot(year_freq, aes(x = year, y = n)) +
+  geom_bar(stat = "identity"))
+
+p + xlim(c(1800, 2010))
+
+p + xlim(c(1945, 1955)) # huge increase at 1950
+
+p + xlim(c(2000, 2015)) # huge drop at 2009 (data contains some extrapolation)
+
+```
+
+Let's just focus on the years 1950-2008 (which have the bulk of data). You lose some countries this way, (Jenny specifically calls out Bhutan as it only has 11 years of collection data), but often when cleaning your two roads when you have missing data are 1) ruthlessly remove missing stuff until you have a complete dataset, or do [imputation](https://en.wikipedia.org/wiki/Imputation_(statistics)), the act of replacing missing values with a substitute. This can be as simple as the mean or median of a column, or something where you actually build a model and interpolate
+
+```{r output}
+
+pop_raw <- pop_raw %>% 
+    mutate(pop = pop %>% as.integer())
+
+write_tsv(pop_raw,"01_pop.tsv")
+```
+
+
+PART II
+
+```{r lifeexp}
+le_xls <-
+  read_excel("life-expectancy-reference-spreadsheet-20090204-xls-format.xls",
+             sheet = "Data and metadata")
+
+le_xls %>% glimpse()
+
+le_raw <- le_xls %>%
+  select(country = contains("country"), continent = contains("continent"),
+         year = contains("year"), lifeExp = contains("expectancy"))
+le_raw %>% glimpse()
+
+n_distinct(le_raw$year)
+
+unique(le_raw$year)
+
+all(le_raw$year %in% 1800:2007)
+
+
+le_raw <- le_raw %>%
+  mutate(year = year %>% as.integer())
+
+le_raw$year %>% summary()
+```
+
+lots of NA's in life expectancy apparently
+
+```{r}
+le_raw$lifeExp %>% head(100)
+```
+
+just how many?
+```{r}
+sum(is.na(le_raw$lifeExp))
+
+```
+
+OK, now we need to get rid of them. How? FILTER!!!
+
+```{r}
+le_raw <- le_raw %>%
+  filter(!is.na(lifeExp)) #returns the inverse list of NA values, so only rows with actual data will be returned
+glimpse(le_raw)
+```
+
+What about continents? 
+```{r}
+n_distinct(le_raw) # 7 continents that's a good sign, right?
+unique(le_raw$continent) #uh....maybe not these continents?
+```
+
+What's going on with the empty continent and FSU?
+
+```{r}
+(empty_continent <- le_raw %>%
+   filter(is.na(continent)) %>%
+   select(country) %>%
+   unique())
+```
+
+O Canada (why???), but the rest make "sense" as islands
+
+```{r}
+(fsu_continent <- le_raw %>%
+   filter(continent == "FSU") %>%
+   select(country) %>%
+   unique())
+```
+
+FSU = former soviet union
+
+deal with these weirdnesses after merge
+
+```{r}
+n_distinct(le_raw$country)
+unique(le_raw$country)
+```
+no obvious warning signs
+
+
+return to year, with a binwidth of 1 for finer granularity
+
+```{r}
+(p <- ggplot(le_raw, aes(x = year)) + geom_histogram(binwidth = 1))
+p+xlim(c(1945,2010)) #zoom in on main data range
+p+xlim(c(1950,1960))
+```
+Big takeaway... most data comes in 5 year gaps, so we can just thin out all the other years
+```{r}
+year_min <- 1950
+year_max <- 2007
+le_raw <- le_raw %>%
+  filter(year %>% between(year_min, year_max))
+le_raw %>% glimpse()
+```
+
+
+save....
+
+```{r}
+le_raw <- le_raw %>% 
+  select(country, continent, year, lifeExp)
+
+write_tsv(le_raw, "02_lifeExp.tsv")
+```
+
+Part III
+
+time for some a really malformed excel file
+
+background: from the note Jenny Bryan manually deleted all columns relating to years before 1950 and saved the file as a text file.
+
+
+What we need to do is go from [wide to long format](https://uc-r.github.io/tidyr) , using gather() from tidyr (also imported as part of tidyverse).
+
+Basically, you are combining a bunch of columns ,all with different keys (here, the keys are years), and naming what the common value is, and finally removing any extra columns that are not part of the gathering operating (here we remove Area with -Area).
+```{r}
+gdp_xls <- read_tsv("gdpPercap.txt")
+gdp_xls %>% glimpse()
+```
+
+
+```{r}
+gdp_tidy <- gdp_xls %>%
+  gather(key = "Xyear", value = "gdpPercap", -Area)
+gdp_tidy %>% str()
+
+gdp_tidy$Xyear <- as.factor(gdp_tidy$Xyear)
+
+gdp_tidy <- gdp_tidy %>%
+  rename(country = Area) %>%
+  mutate(Xyear = levels(Xyear)[as.numeric(Xyear)],
+         year = gsub("X", "", Xyear) %>% as.integer(),
+         Xyear=NULL)
+
+gdp_tidy %>% str()
+
+
+gdp_tidy <- gdp_tidy %>%
+  filter(!is.na(gdpPercap))
+gdp_tidy %>% glimpse()
+
+(p <- ggplot(gdp_tidy, aes(x = year)) + geom_histogram(binwidth = 1))
+```
+
+This data has data for p. much every year unlike pop and life expectency
+```{r}
+write_tsv(gdp_tidy, "03_gdpPercap.tsv")
+```
+
+part IV
+
+MERGING /COMBINING DATASETS
+
+```{r}
+pop_dat <- read_tsv("01_pop.tsv") %>% 
+  mutate(country = factor(country))
+pop_dat %>% str()
+```
+
+```{r}
+le_dat <- read_tsv("02_lifeExp.tsv") %>% 
+  mutate(country = factor(country),
+         continent = factor(continent))
+le_dat %>% str()
+```
+```{r}
+gdp_dat <- read_tsv("03_gdpPercap.tsv") %>% 
+  mutate(country = factor(country))
+gdp_dat %>% str()
+```
+
+OK, we have 3 different data sets; pop_dat, le_dat, gdp_dat. What is the overlap among a unifying variable (say, country?) between the datasets?
+
+```{r}
+country_levels <- function(df) levels(df$country)
+union_country <- country_levels(pop_dat) %>%
+  union(country_levels(le_dat)) %>%
+  union(country_levels(gdp_dat)) %>%
+  sort()
+union_country %>% length()
+```
+
+Which countries are in which dataset?
+```{r}
+c_dat <- data_frame(country = union_country,
+                    pop = country %in% levels(pop_dat$country),
+                    le = country %in% levels(le_dat$country),
+                    gdp = country %in% levels(gdp_dat$country),
+                    total = pop + le + gdp)
+c_dat$total %>% table
+```
+
+Yikes, so gdp has by far the most country data.
+
+Some renaming of countries to make more uniform/friendly
+
+```{r}
+country_subs <- c("Bahamas, The" = "Bahamas",
+                  "Central African Rep." = "Central African Republic",
+                  "Cook Is" = "Cook Islands",
+                  "Czech Rep." = "Czech Republic",
+                  "Dominican Rep." = "Dominican Republic",
+                  "Egypt, Arab Rep." = "Egypt",
+                  "Gambia, The" = "Gambia",
+                  "Iran, Islamic Rep." = "Iran",
+                  "Russian Federation" = "Russia",
+                  "Syrian Arab Republic" = "Syria",
+                  "Venezuela, RB" = "Venezuela")
+recode_country <- function(x) recode(x, !!!country_subs) #unquote splicing with !!!
+#this gets a bit hairy
+#https://dplyr.tidyverse.org/articles/programming.html#unquote-splicing
+#basically, the intent is to make vector names to become argument names
+pop_dat <- pop_dat %>%
+  mutate(country = recode_country(country))
+
+le_dat <- le_dat %>%
+  mutate(country = recode_country(country))
+
+gdp_dat <- gdp_dat %>%
+  mutate(country = recode_country(country))
+```
+
+
+Is the union better now?
+
+```{r}
+union_country <- country_levels(pop_dat) %>%
+  union(country_levels(le_dat)) %>%
+  union(country_levels(gdp_dat)) %>%
+  sort()
+union_country %>% length()
+```
+
+```{r}
+c_dat <- data_frame(country = union_country,
+                    pop = country %in% levels(pop_dat$country),
+                    le = country %in% levels(le_dat$country),
+                    gdp = country %in% levels(gdp_dat$country),
+                    total = pop + le + gdp)
+c_dat$total %>% table()
+
+c_dat %>%
+  filter(total < 3)
+```
+```{r}
+gap_dat <- pop_dat %>%
+  inner_join(gdp_dat, by = c("country", "year")) %>%
+  inner_join(le_dat, by = c("country", "year")) %>%
+  droplevels() %>%
+  arrange(country, year)
+  
+my_vars <- c('country', 'continent', 'year', 'lifeExp', 'pop', 'gdpPercap')
+gap_dat <- gap_dat[my_vars]
+
+write_tsv(gap_dat, "04_gap-merged.tsv")
+```
+
