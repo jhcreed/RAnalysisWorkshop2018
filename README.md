@@ -12,3 +12,7 @@ Webinar videos will be available online. All code and slides from the sessions w
 ### Sponsors and collaborators
 This workshop is sponsored by the American Statistical Association USF chapter, Interdisciplinary Data Sciences Consortium, Tampa Bay R useRs and the International Federation of Non-linear Analysts. 
 
+### Recordings
+All lectures will be recorded and made available on youtube. The videos for each day can be found below. 
+
+[Day 1: Introduction and Import/Data Cleaning](https://www.youtube.com/channel/UCwLRVs9F6BKWb64sHcl2Txw?view_as=subscriber)
