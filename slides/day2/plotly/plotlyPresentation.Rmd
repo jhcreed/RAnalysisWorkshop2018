@@ -1,0 +1,484 @@
+---
+title: "Introduction to Plotly"
+author: "Kris Kindle"
+date: "`r Sys.Date()`"
+output:
+  xaringan::moon_reader:
+    lib_dir: libs
+    nature:
+      highlightStyle: github
+      highlightLines: true
+      countIncrementalSlides: false
+---
+
+```{r setup, include=FALSE}
+```
+---
+# What is Plotly?
+
+--
+- Graphing library built using d3.js and stack.gl with apis for many languages popular with data scientist (R, Python, Julia, and more)
+
+--
+- Open source (MIT license)  with source code available on [Github](https://github.com/ropensci/plotly)
+---
+
+# Why Plotly?
+
+--
+
+- Allows the user to create interactive visuals
+
+--
+
+- Can be translated more easily to another language more easily than Base R or GGplot plots (ggplots can also be translated into plotly plots)
+--
+
+- Makes visually pleasing plots that we can use in a Shiny application
+
+---
+
+# Plan of Action
+
+In this presentation we will go work through the following: 
+
+--
+- How to construct some of the most common plot types
+
+--
+- How to fine tune some of the plot details
+
+--
+- How to animate a plot
+
+--
+- How to create sub-plots
+
+--
+- How to translate a ggplot to plotly
+
+---
+# How to Setup Plotly
+
+To be able to use Plotly we must first install the Plotly library. To do this run the following command.
+
+```r
+install.packages("plotly")
+```
+--
+Once you have done that you need to load it into the session. 
+
+```r
+library(plotly)
+```
+(Notice to load the library by name we do not use quotes as we did in the installation step)
+
+---
+# The libraries used in this presentation
+
+The Plotly library is great, but we will need a few other libraries for the examples that we are going to run through. (If you wish to recreate the examples you will need to install these libraries first)
+
+
+```{r, echo=F}
+library(tidyverse)  
+library(Lahman)
+library(crosstalk)
+library(plotly)
+```
+
+---
+# A Quick Note on the Lahman Package
+
+The Lahman package is name d after Sean Lahman who is a sports reporter that maintains a historical database for baseball data. Data for the years 1871 - 2016 are currently available. This package for R takes the relational tables and makes the data available as a function call.
+
+
+```{r library-Lahman, echo=T, warning =F}
+batting <- Batting
+head(batting, n =3)
+```
+
+---
+# The Essentials of a Plotly Plot
+
+```{r ,eval=FALSE}
+plot_ly(
+  data = ourDF,
+  x = ~xAxisVariable,
+  y = ~yAxisVariable,
+  type = "plotType"
+)
+```
+
+* Data 
+  + We must first tell the function where we want to take our data from
+ 
+
+* The variables we want to plot 
+  + Which variables from our data we want to plot as well as which axis we want the data on
+ 
+
+* What Type of Plot we want it to make
+---
+# Our First Example
+
+```{r, echo = F}
+playersByLeague <- batting %>%
+  group_by(lgID) %>%
+  summarise(
+    TotalPlayers = n_distinct(playerID)
+  ) %>%
+  mutate(lgID = forcats::fct_reorder(lgID, desc(TotalPlayers)))
+
+```
+
+
+
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data=playersByLeague,
+  x=~lgID,
+  y=~TotalPlayers,
+  type ='bar'
+)
+```
+
+.footnote[
+[1] For data for examples see the example.R script
+]
+
+---
+# Example 2
+```{r, echo = F}
+playersByLeagueByYear <- batting %>%
+  group_by(lgID, yearID) %>%
+  summarise(
+    TotalPlayers = n_distinct(playerID)
+  ) 
+
+```
+
+
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data=playersByLeagueByYear,
+  x=~yearID,
+  y=~TotalPlayers,
+  type='scatter'
+)
+```
+---
+# Example 3
+```{r, fig.height=4, warning =F}
+plot_ly(
+  data=playersByLeagueByYear,
+  x=~lgID,
+  y=~TotalPlayers,
+  type='box'
+)
+```
+---
+# Sprucing up Our Plots
+So far we have been using just the bare minimum to make our plots lets now add some options to our plots to bring them closer to an end product.The following options are for the plot_ly function.
+
+--
+- Color `-` Add color to your plots based on another variable
+
+--
+- Hover Info `-` Change what the user sees when they mouse over
+
+--
+- Mode `-` For the scatter type of plot we can use this to change it to different plot types
+---
+# Adding Color
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data=playersByLeagueByYear,
+  x=~yearID,
+  y=~TotalPlayers,
+  color=~lgID,
+  type='scatter'
+)
+```
+---
+# Changing Hover-Info
+
+
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data=playersByLeague,
+  x=~lgID,
+  y=~TotalPlayers,
+  color=~lgID,
+  type='bar',
+  hoverinfo = "text",
+  text=~paste("League: ", lgID,
+              "<br> Players: ", TotalPlayers)
+)
+```
+---
+# Changing Scatter Modes
+
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data=playersByLeagueByYear,
+  x=~yearID,
+  y=~TotalPlayers,
+  color=~lgID,
+  type='scatter',
+  mode ='lines'
+)
+```
+---
+# The Layout Function
+The layout function allows to even further customize the look and layout of our plots. To do this we need to pass our plot into the layout function. The following are some basic options avialable in the layout function.  
+
+--
+- Title `-` Change the title of the plot
+
+--
+- showlegend `-` Setting to FALSE will allow us to drop the legend
+
+--
+- Axis Option `-` We can set the options for our axis (More on this soon)
+---
+# Changing Layout Options
+
+```{r, fig.height=3, warning =F}
+plot_ly(
+  data = playersByLeague,
+  x = ~lgID,
+  y = ~TotalPlayers,
+  color = ~lgID,
+  hoverinfo = "text",
+  text=~paste("League: ", lgID,
+              "<br> Players: ", TotalPlayers),
+  type = 'bar'
+) %>%
+  layout(title = "Total Unique Players by League", showlegend=F)
+```
+---
+# Changing Axis Options
+To customize the axis of our plot we use the corresponding axis argument to the layout function and pass it a list of the arguments that we want to use. Some things that we can change with options
+
+--
+- Title `-` Change the axis label
+
+--
+- Font `-` Change the font for the axis label
+
+--
+- ticks `-` Change pretty much everything about the axis ticks
+
+--
+- type `-` This can be used to change the scale among other things
+
+---
+#Example of Axis Options
+
+```{r, plot1, fig.height=2, warning =F}
+plot_ly(
+  data = playersByLeague,
+  x = ~lgID,
+  y = ~TotalPlayers,
+  color = ~lgID,
+  hoverinfo = "text",
+  text=~paste("League: ", lgID,
+              "<br> Players: ", TotalPlayers),
+  type = 'bar'
+) %>%
+  layout(title = "Total Unique Players by League", 
+         showlegend=F,
+         xaxis = list(title = "League"), 
+         yaxis=list(title = "Total Players"))
+```
+---
+# Using Sub Plots
+To place two seperate plots in the same frame you need to save the plots that you want to place in the frame as a variable. Then place these saved plots as the initial arguments of the subplot function.
+
+```r
+p1 <- plot_ly(data = shared_data, 
+              x = ~xVariable, 
+              y = ~yVariable, 
+              type = "plot_type"
+
+p2 <- plot_ly(data = shared_data, 
+              x = ~xVariable, 
+              y = ~yVariable, 
+              type = "plot_type")
+
+
+subplot(p1, p2)
+```
+
+
+---
+# Sub Plot Examples
+```{r echo=F}
+playerMeanAtBatsYearLeague <- batting%>%
+  group_by(yearID) %>%
+  summarise(
+    TotalPlayers = n_distinct(playerID),
+    MeanAtBats = mean(AB)
+  )
+```
+
+```{r sub-plot, eval =F}
+p1 <- plot_ly(
+  data = playerMeanAtBatsYearLeague,
+  x= ~yearID,
+  y= ~MeanAtBats,
+  type ='scatter',
+  mode='lines',
+  name='Mean of At-Bats'
+)
+
+p2 <- plot_ly(
+  data = playerMeanAtBatsYearLeague,
+  x= ~yearID,
+  y= ~TotalPlayers,
+  type ='scatter',
+  mode='lines',
+  name = 'Total Players'
+)
+
+subplot(p1,p2, nrows = 2, shareX = T)
+```
+---
+# Output of Subplot
+
+```{r ref.label='sub-plot', echo =F}
+```
+---
+# Animate Your Plots
+To animate a plot we will need to use three functions specific to animation as well as add an option in to our plot. The option that we need to specify is the frame that we want to capture. The three functions that we will need are :
+
+--
+- animation_opts `-` Set the specifics of the animation such as how long each frame is shown
+
+-- 
+- animation_button `-` Add the play button as well as specify it position in the plot
+
+--
+-animation_slider `-` Slider that will allow us to scrub through frames
+
+
+---
+# Animated Plot Example
+
+```{r, echo = F}
+playerMeanAtBatsYearLeague <- batting %>%
+  group_by(lgID, yearID, teamID) %>%
+  summarise(
+    TotalPlayers = n_distinct(playerID),
+    MeanAtBats = mean(AB)
+  )
+```
+
+
+```{r, animatePlot, eval=F}
+plot_ly(
+  data = playerMeanAtBatsYearLeague,
+  x = ~TotalPlayers,
+  y = ~jitter(MeanAtBats),
+  hoverinfo = 'text',
+  text = ~teamID
+) %>%
+  add_markers(frame = ~yearID) %>%
+  layout(title = "Total Players vs. Mean of At-Bats",
+         xaxis = list(title = "Total Players"),
+         yaxis = list(title = "Mean of At-Bats")) %>%
+  animation_opts(300, easing = 'elastic', redraw = F) %>%
+  animation_button(
+    x = 1, xanchor = "right", y = 0, yanchor = "bottom"
+  ) %>%
+  animation_slider(
+    currentvalue = list(prefix = "Year ", font = list(color="red"))
+  )
+```
+---
+# Animation Example Output
+```{r, ref.label='animatePlot', echo =F}
+```
+---
+# Maps
+Plotly comes with a function that can create goegraphic maps (plot_geo). To make use of it we need our dataset to contain a column of standard region names (For example: State Names). 
+
+```{r, echo = F}
+ playerData <- Master
+ 
+ usPlayers <- playerData %>%
+   filter(birthCountry == 'USA') %>%
+   group_by(birthState) %>%
+   summarise(
+     Total = n_distinct(playerID)
+   )
+```
+
+```{r, map, eval =F}
+ plot_geo(usPlayers) %>%
+   add_trace(
+     z = ~Total, 
+     locations = ~birthState,
+     locationmode = 'USA-states',
+     text = ~paste("State: ", birthState,
+                   "<br> Total: ", Total)
+   ) %>%
+   layout(geo = list(
+     scope = 'usa',
+     projection = list(type = 'albers usa'),
+     lakecolor = toRGB('white')
+   ))
+
+```
+---
+# Map Output
+
+```{r, ref.label='map', echo =F}
+```
+---
+# Linking Plots
+To link plots we need to use the crosstalk library. This will allow us to create a shared data object for the plots to use. Once we create this we can then specify which user interactions will modify the plots.
+
+---
+# Example Linked Plot
+
+```{r echo=F}
+sharedData <- SharedData$new(playerMeanAtBatsYearLeague, ~lgID, "Select a League")
+```
+
+```{r linkedplot, eval=F}
+sharedData <- SharedData$new(playerMeanAtBatsYearLeague, ~teamID, "Select a Team")
+
+p1 <- plot_ly(data = sharedData) %>%
+            group_by(teamID) %>%
+            add_markers(
+              x = ~TotalPlayers,
+              y = ~teamID)
+
+
+p2 <- plot_ly(data=sharedData) %>%
+            group_by(teamID) %>%
+            add_lines(
+              x = ~yearID,
+              y = ~TotalPlayers,
+              type= 'scatter',
+              mode = 'lines') 
+
+subplot(p1, p2, widths = c(0.3, 0.7)) %>%
+  hide_legend() %>%
+  highlight(dynamic = TRUE, selectize = TRUE)
+```
+---
+# Linked Plot Output
+```{r, ref.label='linkedplot', fig.height = 4, echo =F}
+```
+
+---
+# Some Helpful Links
+- (https://github.com/ropensci/plotly)
+- (https://plotly-book.cpsievert.me/)
+- (https://plot.ly/r/)
+- (https://stackoverflow.com/)
+
+
+
