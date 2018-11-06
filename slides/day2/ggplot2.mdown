@@ -1,0 +1,4 @@
+# ggplot2
+Slides and code for this talk are available at:
+
+[https://github.com/gadenbuie/gentle-ggplot2/tree/asa-usf](https://github.com/gadenbuie/gentle-ggplot2/tree/asa-usf)
