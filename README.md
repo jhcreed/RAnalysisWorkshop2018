@@ -16,3 +16,5 @@ This workshop is sponsored by the American Statistical Association USF chapter, 
 All lectures will be recorded and made available on youtube. The videos for each day can be found below. 
 
 [Day 1: Introduction and Import/Data Cleaning](https://www.youtube.com/channel/UCwLRVs9F6BKWb64sHcl2Txw?view_as=subscriber)
+
+[Day 2: Visualization with ggplot and plotly](https://www.youtube.com/watch?v=0fOlzWlC_LM)
